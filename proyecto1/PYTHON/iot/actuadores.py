@@ -11,7 +11,7 @@ estado_actuadores = {
 }
 
 
-# Permite recordar si la alarma fue silenciada.
+# Permite recordar si la alarma fue silenciada
 alarma_silenciada = False
 
 
