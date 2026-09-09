@@ -1,9 +1,15 @@
 import json
-from queue import Queue, Empty
 
 import paho.mqtt.client as mqtt
 
-from configuracion import (MQTT_ACTIVO,MQTT_BROKER,MQTT_PUERTO,MQTT_USUARIO,MQTT_PASSWORD,MQTT_TLS,IDENTIFICADOR_UNICO)
+from configuracion import (
+    MQTT_ACTIVO,
+    MQTT_BROKER,
+    MQTT_PUERTO,
+    MQTT_USUARIO,
+    MQTT_PASSWORD,
+    IDENTIFICADOR_UNICO)
+
 
 
 class ClienteMQTT:
@@ -11,138 +17,123 @@ class ClienteMQTT:
     def __init__(self):
 
         self.activo = MQTT_ACTIVO
+
         self.cliente = None
 
-        # Aquí se guardan los comandos enviados desde el dashboard
-        self.comandos = Queue()
+        self.comandos = []
+
+
+        if not self.activo:
+
+            print("MQTT desactivado.")
+            return
+
+
+        self.cliente = mqtt.Client(client_id=IDENTIFICADOR_UNICO)
+
+
+        if MQTT_USUARIO:
+            self.cliente.username_pw_set(MQTT_USUARIO,MQTT_PASSWORD)
+
+
+
+        self.cliente.on_connect = self.al_conectar
+
+        self.cliente.on_message = self.al_recibir
+
 
 
     def conectar(self):
 
         if not self.activo:
-            print("MQTT desactivado.")
             return
 
         try:
 
-            self.cliente = mqtt.Client()
-
-            self.cliente.on_connect = self._al_conectar
-            self.cliente.on_message = self._al_recibir_mensaje
-
-            if MQTT_USUARIO:
-                self.cliente.username_pw_set(MQTT_USUARIO,MQTT_PASSWORD)
-
-            if MQTT_TLS:
-                self.cliente.tls_set()
-
-            self.cliente.connect(MQTT_BROKER,MQTT_PUERTO,60)
+            self.cliente.connect(MQTT_BROKER,MQTT_PUERTO)
 
             self.cliente.loop_start()
 
-            print("Conectando con MQTT...")
+            print("MQTT conectado.")
+
+
 
         except Exception as error:
 
-            print(f"Error al conectar con MQTT: {error}")
 
-            self.activo = False
-
-
-    def _topic(self, ruta):
-
-        return (f"{IDENTIFICADOR_UNICO}/"f"edificio/{ruta}")
+            print(f"Error conectando MQTT: {error}")
 
 
-    def _al_conectar(self,cliente,userdata,flags,codigo):
+    def al_conectar(self,cliente,datos,flags,codigo):
+
 
         if codigo == 0:
 
-            print("Conexión MQTT establecida.")
+            print("Broker MQTT disponible.")
 
-            cliente.subscribe(self._topic("control/remoto"))
-
-        else:
-
-            print(f"Error MQTT. Código: {codigo}")
+            cliente.subscribe("edificio/control/remoto")
 
 
-    def _al_recibir_mensaje(self,cliente,userdata,mensaje):
+    def al_recibir(self,cliente,datos,mensaje):
+
 
         try:
 
-            contenido = mensaje.payload.decode()
+            comando = json.loads(mensaje.payload.decode())
 
-            comando = json.loads(contenido)
-
-            self.comandos.put(comando)
-
-            print(f"Comando MQTT recibido: {comando}")
+            self.comandos.append(comando)
 
         except Exception as error:
 
-            print(f"Error al leer comando MQTT: {error}")
+            print(f"Error procesando MQTT: {error}")
 
 
-    def publicar(self, ruta, datos):
+    def publicar(self,ruta,datos):
+
 
         if not self.activo:
             return
 
-        mensaje = json.dumps(datos,ensure_ascii=False)
 
-        self.cliente.publish(self._topic(ruta),mensaje)
+        mensaje = json.dumps(datos)
 
-
-    def publicar_lecturas(self, datos):
-
-        self.publicar("sensores/temperatura",{"valor": datos["temperatura"]})
-
-        self.publicar("sensores/humedad",{"valor": datos["humedad"]})
-
-        self.publicar("sensores/gas",{"valor": datos["gas"]})
-
-        self.publicar("sensores/distancia",{"valor": datos["distancia"]})
-
-        self.publicar("sensores/luz",{"valor": datos["luz"]})
+        self.cliente.publish(ruta,mensaje)
 
 
-    def publicar_estado(self, estado):
-
-        self.publicar("estado/global",{"estado": estado})
+    def publicar_lecturas(self,datos):
 
 
-    def publicar_actuadores(self, actuadores):
+        self.publicar("edificio/sensores",datos)
 
-        self.publicar("actuadores/puerta",{"estado": actuadores["puerta"]})
+    def publicar_estado(self,estado):
 
-        self.publicar(
-            "actuadores/luces",
-            {"estado": actuadores["luces"],"modo": actuadores["modo_luces"]})
-
-        self.publicar("actuadores/ventilador",{"estado": actuadores["ventilador"]})
-
-        self.publicar("actuadores/alarma",{"estado": actuadores["alarma"]})
+        self.publicar("edificio/estado/global",{"estado": estado})
 
 
-    def publicar_resultado_arm64(self, resultado):
+    def publicar_actuadores(self,actuadores):
 
-        self.publicar("arm64/resultados",resultado)
+        self.publicar("edificio/actuadores",actuadores)
+
+
+    def publicar_resultado_arm64(self,resultado):
+
+
+        self.publicar("edificio/arm64/resultados",resultado)
+
 
 
     def obtener_comando(self):
 
-        try:
-            return self.comandos.get_nowait()
+        if len(self.comandos) > 0:
+            return self.comandos.pop(0)
+        return None
 
-        except Empty:
-            return None
+
 
 
     def cerrar(self):
 
-        if self.activo and self.cliente:
+        if self.cliente:
 
             self.cliente.loop_stop()
-
             self.cliente.disconnect()

@@ -1,21 +1,42 @@
-from configuracion import (TEMPERATURA_MAXIMA,HUMEDAD_MINIMA,HUMEDAD_MAXIMA,GAS_MAXIMO)
+from configuracion import (
+    TEMPERATURA_MAXIMA,
+    HUMEDAD_MINIMA,
+    HUMEDAD_MAXIMA,
+    GAS_MAXIMO)
+
+from Globals import shared
+
+def actualizar_estado():
+   
+    temperatura = shared.temperatura
+    humedad = shared.humedad
+    gas = shared.gas
 
 
-def obtener_estado(datos):
-    
-    # Determina el estado general del edificio
 
+    # El gas tiene prioridad porque representa una situación peligrosa
 
-    temperatura = datos["temperatura"]
-    humedad = datos["humedad"]
-    gas = datos["gas"]
-
-    # El gas tiene mayor prioridad
     if gas > GAS_MAXIMO:
-        return "EMERGENCIA"
+        shared.estado_global = "EMERGENCIA"
+        return shared.estado_global
 
-    # Temperatura o humedad fuera de rango
-    if (temperatura > TEMPERATURA_MAXIMA or humedad < HUMEDAD_MINIMA or humedad > HUMEDAD_MAXIMA):
-        return "ADVERTENCIA"
 
-    return "NORMAL"
+    # Temperatura o humedad fuera del rango permitido
+
+    if temperatura > TEMPERATURA_MAXIMA:
+        shared.estado_global = "ADVERTENCIA"
+        return shared.estado_global
+
+
+    if humedad < HUMEDAD_MINIMA:
+        shared.estado_global = "ADVERTENCIA"
+        return shared.estado_global
+
+
+    if humedad > HUMEDAD_MAXIMA:
+        shared.estado_global = "ADVERTENCIA"
+        return shared.estado_global
+    shared.estado_global = "NORMAL"
+
+
+    return shared.estado_global

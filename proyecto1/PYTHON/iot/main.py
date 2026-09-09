@@ -1,31 +1,22 @@
 import time
 
 from sensores import leer_sensores
-from estado import obtener_estado
+from estado import actualizar_estado
+from actuadores import controlar_actuadores, ejecutar_comando
 
-from actuadores import (
-    controlar_actuadores,
-    ejecutar_comando
-)
+from Globals import shared
 
-from configuracion import (
-    INTERVALO_LECTURA
-)
+from configuracion import INTERVALO_LECTURA
 
 from base_datos import BaseDatos
 from mqtt_cliente import ClienteMQTT
+
 from arm64 import agregar_temperatura
 
 
-def mostrar_informacion(
-    datos,
-    estado,
-    actuadores
-):
-    """
-    Muestra en consola el estado actual
-    del edificio.
-    """
+
+def mostrar_informacion(actuadores):
+    
 
     print("\n===================================")
     print("       EDIFICIO INTELIGENTE")
@@ -33,81 +24,35 @@ def mostrar_informacion(
 
     print("\nSENSORES")
 
-    print(
-        f"Temperatura: "
-        f"{datos['temperatura']} °C"
-    )
+    print(f"Temperatura: {shared.temperatura} °C")
+    print(f"Humedad: {shared.humedad} %")
+    print(f"Gas: {shared.gas}")
+    print(f"Distancia: {shared.distancia} cm")
+    print(f"Luz: {shared.luz}")
 
-    print(
-        f"Humedad: "
-        f"{datos['humedad']} %"
-    )
-
-    print(
-        f"Gas: "
-        f"{datos['gas']}"
-    )
-
-    print(
-        f"Distancia: "
-        f"{datos['distancia']} cm"
-    )
-
-    print(
-        f"Luz: "
-        f"{datos['luz']}"
-    )
-
-    print(
-        f"\nEstado general: {estado}"
-    )
+    print(f"\nEstado general: {shared.estado_global}")
 
     print("\nACTUADORES")
 
-    print(
-        f"Ventilador: "
-        f"{actuadores['ventilador']}"
-    )
-
-    print(
-        f"Alarma: "
-        f"{actuadores['alarma']}"
-    )
-
-    print(
-        f"Puerta: "
-        f"{actuadores['puerta']}"
-    )
-
-    print(
-        f"Luces: "
-        f"{actuadores['luces']}"
-    )
-
-    print(
-        f"Modo luces: "
-        f"{actuadores['modo_luces']}"
-    )
+    print(f"Ventilador: {actuadores['ventilador']}")
+    print(f"Alarma: {actuadores['alarma']}")
+    print(f"Puerta: {actuadores['puerta']}")
+    print(f"Luces: {actuadores['luces']}")
+    print(f"Modo luces: {actuadores['modo_luces']}")
 
     print("===================================")
 
 
+
 def main():
 
-    print(
-        "Iniciando sistema del edificio inteligente..."
-    )
+    print("Iniciando sistema del edificio inteligente...")
 
-    # -----------------------------------------
-    # MongoDB
-    # -----------------------------------------
+    # Inicializa conexión con MongoDB
 
     base_datos = BaseDatos()
 
-    # -----------------------------------------
-    # MQTT
-    # -----------------------------------------
-
+    # Inicializa conexión MQTT
     mqtt = ClienteMQTT()
     mqtt.conectar()
 
@@ -117,148 +62,103 @@ def main():
 
         while True:
 
-            # =====================================
-            # 1. LEER SENSORES
-            # =====================================
+            # Lee los valores actuales de sensores
 
-            datos = leer_sensores()
+            leer_sensores()
+            # Actualiza el estado general del edificio
+            estado = actualizar_estado()
 
-            # =====================================
-            # 2. DETERMINAR ESTADO
-            # =====================================
+            # Controla los actuadores automáticamente
+            actuadores = controlar_actuadores()
 
-            estado = obtener_estado(
-                datos
-            )
+            # Muestra información actual del sistema
+            mostrar_informacion(actuadores)
 
-            # =====================================
-            # 3. CONTROLAR ACTUADORES
-            # =====================================
-
-            actuadores = controlar_actuadores(
-                datos,
-                estado
-            )
-
-            # =====================================
-            # 4. MOSTRAR INFORMACIÓN
-            # =====================================
-
-            mostrar_informacion(
-                datos,
-                estado,
-                actuadores
-            )
-
-            # =====================================
-            # 5. GUARDAR EN MONGODB
-            # =====================================
-
+            # Guarda lecturas en MongoDB
             base_datos.guardar_lectura(
-                datos
-            )
+                {
+                    "temperatura": shared.temperatura,
+                    "humedad": shared.humedad,
+                    "gas": shared.gas,
+                    "distancia": shared.distancia,
+                    "luz": shared.luz
+                })
 
-            base_datos.guardar_estado(
-                estado
-            )
 
-            # Guardamos un evento
-            # únicamente cuando cambia el estado.
+            # Guarda el estado actual del edificio
+
+            base_datos.guardar_estado(estado)
+
+
+            # Registra cambios de estado
+
             if estado != estado_anterior:
-
-                base_datos.guardar_evento(
-                    "CAMBIO_ESTADO",
-                    (
-                        f"Estado cambiado de "
-                        f"{estado_anterior} "
-                        f"a {estado}"
-                    )
-                )
-
+                base_datos.guardar_evento("CAMBIO_ESTADO",f"Estado cambiado a {estado}")
                 estado_anterior = estado
 
-            # =====================================
-            # 6. PUBLICAR POR MQTT
-            # =====================================
+            # Publica datos mediante MQTT
 
             mqtt.publicar_lecturas(
-                datos
+                {
+                    "temperatura": shared.temperatura,
+                    "humedad": shared.humedad,
+                    "gas": shared.gas,
+                    "distancia": shared.distancia,
+                    "luz": shared.luz
+                }
             )
 
-            mqtt.publicar_estado(
-                estado
-            )
+            mqtt.publicar_estado(estado)
+            mqtt.publicar_actuadores(actuadores)
 
-            mqtt.publicar_actuadores(
-                actuadores
-            )
-
-            # =====================================
-            # 7. REVISAR COMANDOS DEL DASHBOARD
-            # =====================================
+            # Revisa comandos enviados desde dashboard
 
             comando = mqtt.obtener_comando()
-
             while comando is not None:
 
-                print(
-                    f"\nEjecutando comando: {comando}"
-                )
+                print(f"\nEjecutando comando: {comando}")
 
-                ejecutar_comando(
-                    comando
-                )
+                ejecutar_comando(comando)
 
-                base_datos.guardar_comando(
-                    comando
-                )
+                base_datos.guardar_comando(comando)
 
                 comando = mqtt.obtener_comando()
 
-            # =====================================
-            # 8. ARM64
-            # =====================================
 
-            resultado_arm64 = agregar_temperatura(
-                datos["temperatura"]
-            )
+
+            # Envía temperaturas acumuladas a ARM64
+
+            resultado_arm64 = agregar_temperatura(shared.temperatura)
 
             if resultado_arm64:
 
-                print(
-                    "\nResultado ARM64:"
-                )
+                print("\nResultado ARM64:")
+                print(resultado_arm64)
 
-                print(
-                    resultado_arm64
-                )
 
-                base_datos.guardar_resultado_arm64(
-                    resultado_arm64
-                )
+                base_datos.guardar_resultado_arm64(resultado_arm64)
 
-                mqtt.publicar_resultado_arm64(
-                    resultado_arm64
-                )
+                mqtt.publicar_resultado_arm64(resultado_arm64)
 
-            # =====================================
-            # 9. ESPERAR
-            # =====================================
 
-            time.sleep(
-                INTERVALO_LECTURA
-            )
+
+            # Espera antes de la siguiente lectura
+
+            time.sleep(INTERVALO_LECTURA)
+
 
     except KeyboardInterrupt:
 
-        print(
-            "\nSistema detenido por el usuario."
-        )
+        print("\nSistema detenido por el usuario.")
+
 
     finally:
 
         mqtt.cerrar()
+        base_datos.cerrar()
+
 
 
 if __name__ == "__main__":
+
     main()

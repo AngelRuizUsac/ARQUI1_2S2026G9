@@ -1,111 +1,97 @@
-from configuracion import (TEMPERATURA_MAXIMA,LUZ_MINIMA,DISTANCIA_PUERTA)
+from configuracion import (
+    TEMPERATURA_MAXIMA,
+    LUZ_MINIMA,
+    DISTANCIA_PUERTA)
 
+from Globals import shared
 
-# Estado actual de los dispositivos
-estado_actuadores = {
-    "ventilador": "APAGADO",
-    "alarma": "APAGADA",
-    "puerta": "CERRADA",
-    "luces": "APAGADAS",
-    "modo_luces": "AUTOMATICO"
-}
+def controlar_actuadores():
 
+    # Control del ventilador
 
-# Permite recordar si la alarma fue silenciada
-alarma_silenciada = False
-
-
-def controlar_actuadores(datos, estado):
-
-    global alarma_silenciada
-
-    temperatura = datos["temperatura"]
-    distancia = datos["distancia"]
-    luz = datos["luz"]
-
-    # ventilador
-
-    if temperatura > TEMPERATURA_MAXIMA:
-        estado_actuadores["ventilador"] = "ENCENDIDO"
+    if shared.temperatura > TEMPERATURA_MAXIMA:
+        shared.ventilador = True
     else:
-        estado_actuadores["ventilador"] = "APAGADO"
+        shared.ventilador = False
 
-    # Emergencia
 
-    if estado == "EMERGENCIA":
+    # Control de alarma y puerta por emergencia
 
-        estado_actuadores["puerta"] = "ABIERTA"
+    if shared.estado_global == "EMERGENCIA":
+        shared.alarma = True
+        shared.puerta = True
 
-        if not alarma_silenciada:
-            estado_actuadores["alarma"] = "ENCENDIDA"
 
     else:
-        estado_actuadores["alarma"] = "APAGADA"
 
-        # Si ya no hay emergencia permitimos nuevamente la alarma
-        alarma_silenciada = False
+        shared.alarma = False
 
-        # Apertura automática por distancia.
-        if distancia < DISTANCIA_PUERTA:
-            estado_actuadores["puerta"] = "ABIERTA"
+
+        if shared.distancia < DISTANCIA_PUERTA:
+            shared.puerta = True
         else:
-            estado_actuadores["puerta"] = "CERRADA"
+            shared.puerta = False
 
-    # Iluminación
 
-    if estado_actuadores["modo_luces"] == "AUTOMATICO":
 
-        if luz < LUZ_MINIMA:
-            estado_actuadores["luces"] = "ENCENDIDAS"
-        else:
-            estado_actuadores["luces"] = "APAGADAS"
+    # Control automático de iluminación
 
-    return estado_actuadores.copy()
+    if shared.luz < LUZ_MINIMA:
+        shared.luces = True
+    else:
+        shared.luces = False
+
+    return obtener_estado_actuadores()
+
+
+
+
+def obtener_estado_actuadores():
+
+    return {
+
+        "ventilador": shared.ventilador,
+        "alarma": shared.alarma,
+        "puerta": shared.puerta,
+        "luces": shared.luces,
+        "modo_luces": shared.modo_luces}
+
+
 
 
 def ejecutar_comando(comando):
-    # Ejecuta comandos desde MQTT
 
-    global alarma_silenciada
+    tipo = comando.get("comando","")
 
-    tipo = comando.get("comando",comando.get("command", ""))
-
-    accion = comando.get("accion",comando.get("action", ""))
-
+    accion = comando.get("accion","")
     tipo = tipo.lower()
     accion = accion.lower()
 
-    # Puerta
 
     if tipo == "puerta":
-
         if accion == "abrir":
-            estado_actuadores["puerta"] = "ABIERTA"
-
+            shared.puerta = True
         elif accion == "cerrar":
-            estado_actuadores["puerta"] = "CERRADA"
+            shared.puerta = False
 
-    # Luces
 
     elif tipo == "luces":
 
         if accion == "encender":
-            estado_actuadores["modo_luces"] = "MANUAL"
-            estado_actuadores["luces"] = "ENCENDIDAS"
+            shared.luces = True
+            shared.modo_luces = "MANUAL"
+
 
         elif accion == "apagar":
-            estado_actuadores["modo_luces"] = "MANUAL"
-            estado_actuadores["luces"] = "APAGADAS"
+            shared.luces = False
+            shared.modo_luces = "MANUAL"
 
         elif accion == "automatico":
-            estado_actuadores["modo_luces"] = "AUTOMATICO"
+            shared.modo_luces = "AUTOMATICO"
 
-    # Alarma
 
     elif tipo == "alarma":
-
         if accion == "silenciar":
-            alarma_silenciada = True
-            estado_actuadores["alarma"] = "APAGADA"
+            shared.alarma = False
 
-    return estado_actuadores.copy()
+    return obtener_estado_actuadores()

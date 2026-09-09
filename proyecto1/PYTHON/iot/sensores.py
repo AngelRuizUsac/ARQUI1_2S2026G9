@@ -1,45 +1,37 @@
 import random
-
+from datetime import datetime
 from configuracion import MODO_SIMULACION
+from Globals import shared
+
 
 
 def leer_sensores():
     
-    #Lee todos los sensores del edificio. Mientras estemos trabajando sin la Raspberry, utiliza valores simulados
     
+    # Está funcionando con valores simulados
 
     if MODO_SIMULACION:
-        return leer_sensores_simulados()
+        leer_sensores_simulados()
+    else:
+        leer_sensores_reales()
 
-    return leer_sensores_reales()
 
 
 def leer_sensores_simulados():
-    # Genera valores de prueba para poder desarrollar el proyecto aunque la Raspberry esté apagada, esto se cambiará 
+    
+    # Genera datos de prueba simulando sensores reales
 
-    temperatura = round(random.uniform(20, 35),1)
+    shared.temperatura = round(random.uniform(20, 35),1)
+    shared.humedad = round(random.uniform(35, 80),1)
+    shared.gas = random.randint(100,1000)
+    shared.distancia = round(random.uniform(5, 100),1)
+    shared.luz = random.randint(0,100)
+    shared.ultima_actualizacion = datetime.now()
 
-    humedad = round(random.uniform(35, 80),1)
-
-    gas = random.randint(100,1000)
-
-    distancia = round(random.uniform(5, 100),1)
-
-    luz = random.randint(0,100)
-
-    return {
-        "temperatura": temperatura,
-        "humedad": humedad,
-        "gas": gas,
-        "distancia": distancia,
-        "luz": luz
-    }
 
 
 def leer_sensores_reales():
     
-    # Configurare cada lectura del sensos, esto lo cambiare 
+    #Acá va la lectura real de los GPIO 
 
-    raise RuntimeError(
-        "Los sensores reales todavía no han sido configurados jejeje"
-    )
+    raise Exception("Sensores reales no configurados todavía.")
