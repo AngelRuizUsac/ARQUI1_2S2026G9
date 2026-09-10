@@ -1,21 +1,16 @@
-from configuracion import (TEMPERATURA_MAXIMA,HUMEDAD_MINIMA,HUMEDAD_MAXIMA,GAS_MAXIMO)
+
+from configuracion import TEMPERATURA_MAXIMA, HUMEDAD_MINIMA, HUMEDAD_MAXIMA, GAS_MAXIMO
 
 
 def obtener_estado(datos):
-    
-    # Determina el estado general del edificio
-
-
-    temperatura = datos["temperatura"]
-    humedad = datos["humedad"]
-    gas = datos["gas"]
-
-    # El gas tiene mayor prioridad
-    if gas > GAS_MAXIMO:
+    gas = datos.get("gas")
+    if type(gas) is int and 0 <= gas <= 1023 and gas > GAS_MAXIMO:
         return "EMERGENCIA"
-
-    # Temperatura o humedad fuera de rango
-    if (temperatura > TEMPERATURA_MAXIMA or humedad < HUMEDAD_MINIMA or humedad > HUMEDAD_MAXIMA):
+    temperatura = datos.get("temperatura")
+    humedad = datos.get("humedad")
+    if (temperatura is not None and temperatura > TEMPERATURA_MAXIMA
+            or humedad is not None and not HUMEDAD_MINIMA <= humedad <= HUMEDAD_MAXIMA):
         return "ADVERTENCIA"
+
 
     return "NORMAL"

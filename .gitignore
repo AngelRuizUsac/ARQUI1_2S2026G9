@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.o
+proyecto1/ARM64/programa
+proyecto1/ARM64/datos.txt
+proyecto1/ARM64/resultado.txt
+tmp/
