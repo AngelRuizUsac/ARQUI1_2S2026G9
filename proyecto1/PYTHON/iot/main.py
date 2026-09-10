@@ -9,18 +9,13 @@ from actuadores import Controlador
 from hardware import Hardware
 from base_datos import BaseDatos
 from mqtt_cliente import ClienteMQTT
+
 from arm64 import agregar_temperatura
 
 
-def mostrar_informacion(
-    datos,
-    estado,
-    actuadores
-):
-    """
-    Muestra en consola el estado actual
-    del edificio.
-    """
+
+def mostrar_informacion(actuadores):
+    
 
     print("\n===================================")
     print("       EDIFICIO INTELIGENTE")
@@ -59,30 +54,11 @@ def mostrar_informacion(
 
     print("\nACTUADORES")
 
-    print(
-        f"Ventilador: "
-        f"{actuadores['ventilador']}"
-    )
-
-    print(
-        f"Alarma: "
-        f"{actuadores['alarma']}"
-    )
-
-    print(
-        f"Puerta: "
-        f"{actuadores['puerta']}"
-    )
-
-    print(
-        f"Luces: "
-        f"{actuadores['luces']}"
-    )
-
-    print(
-        f"Modo luces: "
-        f"{actuadores['modo_luces']}"
-    )
+    print(f"Ventilador: {actuadores['ventilador']}")
+    print(f"Alarma: {actuadores['alarma']}")
+    print(f"Puerta: {actuadores['puerta']}")
+    print(f"Luces: {actuadores['luces']}")
+    print(f"Modo luces: {actuadores['modo_luces']}")
 
     if datos.get("dht11_reutilizado"):
         print(f"DHT11: valor anterior ({datos.get('dht11_antiguedad_s')} s)")
@@ -92,6 +68,7 @@ def mostrar_informacion(
             print(f"{sensor}: {detalle}")
 
     print("===================================")
+
 
 
 def main():
