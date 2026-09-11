@@ -22,11 +22,8 @@ def crear_paginas(datos, estado, actuadores=None):
         ("Estado global", estado),
         ("Puerta", (actuadores or {}).get("puerta", "SIN DATOS")),
     ]
-    if datos.get("dht11_reutilizado"):
-        paginas[0] = tuple(linea + " *" for linea in paginas[0])
     for sensor, detalle in datos.get("errores", {}).items():
         if sensor == "DHT11" and datos.get("dht11_reutilizado"):
-            paginas.append(("DHT11 anterior", "Hace %.0f s" % datos["dht11_antiguedad_s"]))
             continue
         titulo = "Fallo USB/Uno" if sensor == "Arduino USB" else f"Fallo {sensor}"
         paginas.append((titulo, "Desconectada" if sensor == "LDR" and "configuracion" in detalle else "Reintentando..."))

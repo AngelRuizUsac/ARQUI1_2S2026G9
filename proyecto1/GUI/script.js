@@ -86,7 +86,7 @@ function handleMessage(topic,val){
     set('connText','Raspberry conectada');document.getElementById('connDot').classList.add('on');
   }else if(topic.startsWith('sensores/')){
     const m=sensorMap[topic.split('/')[1]];if(!m)return;
-    const n=numeric(val.valor), text=n===null?'SIN DATOS':n+m[3]+(val.reutilizado?' (anterior)':'');
+    const n=numeric(val.valor), text=n===null?'SIN DATOS':n+m[3];
     set(m[1],text);set(m[2],text);pushPoint(m[0],n,val.timestamp);
   }else if(topic.startsWith('actuadores/')){
     const key=topic.split('/')[1], ids={puerta:'z-puerta',luces:'z-luces',ventilador:'z-vent',alarma:'z-alarma'};

@@ -208,7 +208,7 @@ def leer_sensores_disponibles():
             datos[clave], instante = _ultimos_valores[clave]
             reutilizados[clave] = True
             antiguedades[clave] = round(ahora - instante, 1)
-            errores.setdefault(clave, f"Usando lectura anterior de hace {antiguedades[clave]} s")
+            errores.setdefault(clave, "Lectura pendiente de actualizacion")
         else:
             reutilizados[clave] = False
             antiguedades[clave] = None
@@ -259,7 +259,7 @@ def mostrar_sensores(sensor="todos"):
                     texto = f"{valor} {unidad}".strip()
                 elif clave in anteriores:
                     anterior, instante = anteriores[clave]
-                    texto = f"{anterior} {unidad} [anterior, {ahora - instante:.1f} s]"
+                    texto = f"{anterior} {unidad}"
                 else:
                     texto = "SIN DATOS (aun no hay lectura valida)"
                 partes.append(f"{etiqueta}: {texto}")
