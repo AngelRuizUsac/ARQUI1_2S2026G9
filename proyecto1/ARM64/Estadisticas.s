@@ -7,16 +7,16 @@ archivo_salida:
     .asciz "resultado.txt"
 
 txt_max:
-    .asciz "Maximo: "
+    .asciz "MAX="
 
 txt_min:
-    .asciz "Minimo: "
+    .asciz "MIN="
 
 txt_prom:
-    .asciz "Promedio: "
+    .asciz "AVG="
 
 txt_cant:
-    .asciz "Cantidad: "
+    .asciz "COUNT="
 
 salto:
     .asciz "\n"
@@ -185,7 +185,7 @@ abrir_salida:
 
     mov x0, x19
     ldr x1, =txt_max
-    mov x2, #8
+    mov x2, #4
     mov x8, #64
     svc #0
 
@@ -208,7 +208,7 @@ abrir_salida:
 
     mov x0, x19
     ldr x1, =txt_min
-    mov x2, #8
+    mov x2, #4
     mov x8, #64
     svc #0
 
@@ -231,7 +231,7 @@ abrir_salida:
 
     mov x0, x19
     ldr x1, =txt_prom
-    mov x2, #10
+    mov x2, #4
     mov x8, #64
     svc #0
 
@@ -254,7 +254,7 @@ abrir_salida:
 
     mov x0, x19
     ldr x1, =txt_cant
-    mov x2, #9
+    mov x2, #6
     mov x8, #64
     svc #0
 

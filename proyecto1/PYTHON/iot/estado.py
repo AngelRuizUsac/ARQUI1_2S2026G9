@@ -1,42 +1,16 @@
-from configuracion import (
-    TEMPERATURA_MAXIMA,
-    HUMEDAD_MINIMA,
-    HUMEDAD_MAXIMA,
-    GAS_MAXIMO)
 
-from Globals import shared
-
-def actualizar_estado():
-   
-    temperatura = shared.temperatura
-    humedad = shared.humedad
-    gas = shared.gas
+from configuracion import TEMPERATURA_MAXIMA, HUMEDAD_MINIMA, HUMEDAD_MAXIMA, GAS_MAXIMO
 
 
-
-    # El gas tiene prioridad porque representa una situación peligrosa
-
-    if gas > GAS_MAXIMO:
-        shared.estado_global = "EMERGENCIA"
-        return shared.estado_global
-
-
-    # Temperatura o humedad fuera del rango permitido
-
-    if temperatura > TEMPERATURA_MAXIMA:
-        shared.estado_global = "ADVERTENCIA"
-        return shared.estado_global
+def obtener_estado(datos):
+    gas = datos.get("gas")
+    if type(gas) is int and 0 <= gas <= 1023 and gas > GAS_MAXIMO:
+        return "EMERGENCIA"
+    temperatura = datos.get("temperatura")
+    humedad = datos.get("humedad")
+    if (temperatura is not None and temperatura > TEMPERATURA_MAXIMA
+            or humedad is not None and not HUMEDAD_MINIMA <= humedad <= HUMEDAD_MAXIMA):
+        return "ADVERTENCIA"
 
 
-    if humedad < HUMEDAD_MINIMA:
-        shared.estado_global = "ADVERTENCIA"
-        return shared.estado_global
-
-
-    if humedad > HUMEDAD_MAXIMA:
-        shared.estado_global = "ADVERTENCIA"
-        return shared.estado_global
-    shared.estado_global = "NORMAL"
-
-
-    return shared.estado_global
+    return "NORMAL"

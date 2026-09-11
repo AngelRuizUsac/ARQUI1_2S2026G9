@@ -1,13 +1,12 @@
+
 import time
-
-from sensores import leer_sensores
-from estado import actualizar_estado
-from actuadores import controlar_actuadores, ejecutar_comando
-
-from Globals import shared
-
+from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
+from collections import OrderedDict
 from configuracion import INTERVALO_LECTURA
-
+from sensores import leer_sensores_disponibles, cerrar_sensores
+from actuadores import Controlador
+from hardware import Hardware
 from base_datos import BaseDatos
 from mqtt_cliente import ClienteMQTT
 
@@ -24,13 +23,34 @@ def mostrar_informacion(actuadores):
 
     print("\nSENSORES")
 
-    print(f"Temperatura: {shared.temperatura} °C")
-    print(f"Humedad: {shared.humedad} %")
-    print(f"Gas: {shared.gas}")
-    print(f"Distancia: {shared.distancia} cm")
-    print(f"Luz: {shared.luz}")
+    print(
+        f"Temperatura: "
+        f"{datos.get('temperatura') if datos.get('temperatura') is not None else 'SIN DATOS'} °C"
+    )
 
-    print(f"\nEstado general: {shared.estado_global}")
+    print(
+        f"Humedad: "
+        f"{datos.get('humedad') if datos.get('humedad') is not None else 'SIN DATOS'} %"
+    )
+
+    print(
+        f"Gas: "
+        f"{datos.get('gas') if datos.get('gas') is not None else 'SIN DATOS'}"
+    )
+
+    print(
+        f"Distancia: "
+        f"{datos.get('distancia') if datos.get('distancia') is not None else 'SIN DATOS'} cm"
+    )
+
+    print(
+        f"Luz: "
+        f"{datos.get('luz') if datos.get('luz') is not None else 'SIN DATOS'}"
+    )
+
+    print(
+        f"\nEstado general: {estado}"
+    )
 
     print("\nACTUADORES")
 
@@ -40,125 +60,127 @@ def mostrar_informacion(actuadores):
     print(f"Luces: {actuadores['luces']}")
     print(f"Modo luces: {actuadores['modo_luces']}")
 
+    if datos.get("dht11_reutilizado"):
+        print(f"DHT11: valor anterior ({datos.get('dht11_antiguedad_s')} s)")
+    if datos.get("errores"):
+        print("\nAVISOS DE SENSORES")
+        for sensor, detalle in datos["errores"].items():
+            print(f"{sensor}: {detalle}")
+
     print("===================================")
 
 
 
 def main():
-
-    print("Iniciando sistema del edificio inteligente...")
-
-    # Inicializa conexión con MongoDB
-
-    base_datos = BaseDatos()
-
-    # Inicializa conexión MQTT
-    mqtt = ClienteMQTT()
-    mqtt.conectar()
-
-    estado_anterior = None
-
+    print("HARDWARE REAL: Raspberry Pi 4 + Arduino USB")
+    db, mqtt = BaseDatos(), ClienteMQTT()
+    controlador = Controlador()
+    hardware = pantalla = None
+    tareas = ThreadPoolExecutor(max_workers=3)
+    lectura = calculo = historial = None
+    siguiente = 0
+    anterior = None
+    vistos = OrderedDict()
     try:
-
+        hardware = Hardware()
+        from pantalla import Pantalla
+        pantalla = Pantalla()
+        mqtt.conectar()
         while True:
+            ahora = time.monotonic()
+            nueva = False
+            if lectura is None and ahora >= siguiente:
+                lectura = tareas.submit(leer_sensores_disponibles)
+            if lectura is not None and lectura.done():
+                try:
+                    datos = lectura.result()
+                except Exception as error:
+                    datos = dict.fromkeys(("temperatura", "humedad", "gas", "luz", "distancia"))
+                    datos["errores"] = {"lectura": str(error)}
+                datos.update(timestamp=datetime.now(timezone.utc).isoformat())
+                controlador.actualizar(datos)
+                db.guardar_lectura(datos)
+                mqtt.publicar_lecturas(datos)
+                nueva = True
+                lectura = None
+                siguiente = ahora + INTERVALO_LECTURA
+                if datos.get("temperatura") is not None and not datos.get("dht11_reutilizado"):
+                    if calculo is None:
+                        calculo = tareas.submit(agregar_temperatura, datos["temperatura"])
+                    else:
+                        db.guardar_evento("ARM64_OCUPADO", "Lectura omitida: calculo anterior sigue activo")
+            controlador.actualizar()
 
-            # Lee los valores actuales de sensores
-
-            leer_sensores()
-            # Actualiza el estado general del edificio
-            estado = actualizar_estado()
-
-            # Controla los actuadores automáticamente
-            actuadores = controlar_actuadores()
-
-            # Muestra información actual del sistema
-            mostrar_informacion(actuadores)
-
-            # Guarda lecturas en MongoDB
-            base_datos.guardar_lectura(
-                {
-                    "temperatura": shared.temperatura,
-                    "humedad": shared.humedad,
-                    "gas": shared.gas,
-                    "distancia": shared.distancia,
-                    "luz": shared.luz
-                })
-
-
-            # Guarda el estado actual del edificio
-
-            base_datos.guardar_estado(estado)
-
-
-            # Registra cambios de estado
-
-            if estado != estado_anterior:
-                base_datos.guardar_evento("CAMBIO_ESTADO",f"Estado cambiado a {estado}")
-                estado_anterior = estado
-
-            # Publica datos mediante MQTT
-
-            mqtt.publicar_lecturas(
-                {
-                    "temperatura": shared.temperatura,
-                    "humedad": shared.humedad,
-                    "gas": shared.gas,
-                    "distancia": shared.distancia,
-                    "luz": shared.luz
-                }
-            )
-
-            mqtt.publicar_estado(estado)
-            mqtt.publicar_actuadores(actuadores)
-
-            # Revisa comandos enviados desde dashboard
-
-            comando = mqtt.obtener_comando()
-            while comando is not None:
-
-                print(f"\nEjecutando comando: {comando}")
-
-                ejecutar_comando(comando)
-
-                base_datos.guardar_comando(comando)
-
-                comando = mqtt.obtener_comando()
-
-
-
-            # Envía temperaturas acumuladas a ARM64
-
-            resultado_arm64 = agregar_temperatura(shared.temperatura)
-
-            if resultado_arm64:
-
-                print("\nResultado ARM64:")
-                print(resultado_arm64)
-
-
-                base_datos.guardar_resultado_arm64(resultado_arm64)
-
-                mqtt.publicar_resultado_arm64(resultado_arm64)
-
-
-
-            # Espera antes de la siguiente lectura
-
-            time.sleep(INTERVALO_LECTURA)
-
-
+            for origen, obtener in (("panel", hardware.obtener_comando), ("dashboard", mqtt.obtener_comando)):
+                for _ in range(20):
+                    comando = obtener()
+                    if comando is None:
+                        break
+                    identificador = comando.get("id")
+                    if not isinstance(identificador, str) or len(identificador) > 100:
+                        identificador = None
+                    if identificador and identificador in vistos:
+                        mqtt.publicar("control/respuesta", vistos[identificador])
+                        continue
+                    vencido = False
+                    if origen == "dashboard" and "ts" in comando:
+                        try:
+                            edad = (datetime.now(timezone.utc) - datetime.fromisoformat(comando["ts"].replace("Z", "+00:00"))).total_seconds()
+                            vencido = edad > 15 or edad < -30
+                        except (ValueError, TypeError, AttributeError):
+                            vencido = True
+                    resultado = dict(aceptado=False, mensaje="Comando vencido o fecha invalida") if vencido else controlador.ejecutar(comando)
+                    hardware.aplicar(controlador.salidas, controlador.estado)
+                    resultado.update(id=identificador, origen=origen)
+                    db.guardar_comando({**comando, **resultado})
+                    mqtt.publicar("control/respuesta", resultado)
+                    if identificador:
+                        vistos[identificador] = resultado
+                        if len(vistos) > 500:
+                            vistos.popitem(last=False)
+            hardware.aplicar(controlador.salidas, controlador.estado)
+            actual = (controlador.estado, controlador.salidas.copy())
+            if actual != anterior:
+                if anterior is None or anterior[0] != actual[0]:
+                    db.guardar_evento("CAMBIO_ESTADO", f"{anterior[0] if anterior else 'INICIO'} -> {actual[0]}")
+                    db.guardar_estado(actual[0])
+                for nombre, valor in actual[1].items():
+                    if anterior is None or anterior[1].get(nombre) != valor:
+                        db.guardar_evento("CAMBIO_ACTUADOR", f"{nombre}: {valor}")
+            if nueva or actual != anterior:
+                mostrar_informacion(controlador.datos, controlador.estado, controlador.salidas)
+                mqtt.publicar_estado(controlador.estado)
+                mqtt.publicar_actuadores(controlador.salidas)
+                mqtt.publicar("diagnostico", {"errores": controlador.datos.get("errores", {})})
+                if pantalla:
+                    pantalla.actualizar(controlador.datos, controlador.estado, controlador.salidas)
+            anterior = actual
+            if calculo is not None and calculo.done():
+                resultado = calculo.result()
+                calculo = None
+                if resultado:
+                    print("\nResultado ARM64:", resultado)
+                    resultado.update(timestamp=datetime.now(timezone.utc).isoformat())
+                    db.guardar_resultado_arm64(resultado)
+                    mqtt.publicar_resultado_arm64(resultado)
+            if historial is None or historial.done():
+                if historial is not None:
+                    historial.result()
+                historial = tareas.submit(mqtt.responder_historial, db)
+            time.sleep(0.1)
     except KeyboardInterrupt:
-
-        print("\nSistema detenido por el usuario.")
-
-
+        print("Sistema detenido")
     finally:
 
+        tareas.shutdown(wait=True, cancel_futures=True)
+        if hardware:
+            hardware.cerrar()
+        if pantalla:
+            pantalla.cerrar()
+        cerrar_sensores()
         mqtt.cerrar()
-        base_datos.cerrar()
-
+        db.cerrar()
 
 
 if __name__ == "__main__":
-
     main()

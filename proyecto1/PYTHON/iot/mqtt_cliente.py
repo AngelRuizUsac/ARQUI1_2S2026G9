@@ -1,139 +1,105 @@
+
 import json
-
-import paho.mqtt.client as mqtt
-
-from configuracion import (
-    MQTT_ACTIVO,
-    MQTT_BROKER,
-    MQTT_PUERTO,
-    MQTT_USUARIO,
-    MQTT_PASSWORD,
-    IDENTIFICADOR_UNICO)
-
+import re
+from queue import Queue, Empty, Full
+import configuracion as cfg
 
 
 class ClienteMQTT:
-
     def __init__(self):
-
-        self.activo = MQTT_ACTIVO
-
+        self.activo = cfg.MQTT_ACTIVO
         self.cliente = None
+        self.comandos = Queue(maxsize=100)
+        self.consultas = Queue(maxsize=20)
 
-        self.comandos = []
-
-
-        if not self.activo:
-
-            print("MQTT desactivado.")
-            return
-
-
-        self.cliente = mqtt.Client(client_id=IDENTIFICADOR_UNICO)
-
-
-        if MQTT_USUARIO:
-            self.cliente.username_pw_set(MQTT_USUARIO,MQTT_PASSWORD)
-
-
-
-        self.cliente.on_connect = self.al_conectar
-
-        self.cliente.on_message = self.al_recibir
-
-
+    def _topic(self, ruta):
+        return f"{cfg.IDENTIFICADOR_UNICO}/edificio/{ruta}"
 
     def conectar(self):
-
         if not self.activo:
+            print("MQTT desactivado")
             return
+        import paho.mqtt.client as mqtt
+        self.cliente = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.cliente.on_connect = self._al_conectar
+        self.cliente.on_message = self._al_recibir_mensaje
+        if cfg.MQTT_USUARIO:
+            self.cliente.username_pw_set(cfg.MQTT_USUARIO, cfg.MQTT_PASSWORD)
+        if cfg.MQTT_TLS:
+            self.cliente.tls_set()
+        self.cliente.will_set(self._topic("conexion"), json.dumps({"conectado": False}), qos=1, retain=True)
+        self.cliente.reconnect_delay_set(min_delay=1, max_delay=30)
+        self.cliente.connect_async(cfg.MQTT_BROKER, cfg.MQTT_PUERTO, 30)
+        self.cliente.loop_start()
 
-        try:
+    def _al_conectar(self, cliente, userdata, flags, reason_code, properties):
+        if reason_code == 0:
+            cliente.subscribe([(self._topic("control/remoto"), 1), (self._topic("historial/solicitud"), 0)])
+            self.publicar("conexion", {"conectado": True}, retain=True)
+        else:
+            print(f"MQTT: conexion rechazada {reason_code}")
 
-            self.cliente.connect(MQTT_BROKER,MQTT_PUERTO)
+    def _al_recibir_mensaje(self, cliente, userdata, mensaje):
 
-            self.cliente.loop_start()
-
-            print("MQTT conectado.")
-
-
-
-        except Exception as error:
-
-
-            print(f"Error conectando MQTT: {error}")
-
-
-    def al_conectar(self,cliente,datos,flags,codigo):
-
-
-        if codigo == 0:
-
-            print("Broker MQTT disponible.")
-
-            cliente.subscribe("edificio/control/remoto")
-
-
-    def al_recibir(self,cliente,datos,mensaje):
-
-
-        try:
-
-            comando = json.loads(mensaje.payload.decode())
-
-            self.comandos.append(comando)
-
-        except Exception as error:
-
-            print(f"Error procesando MQTT: {error}")
-
-
-    def publicar(self,ruta,datos):
-
-
-        if not self.activo:
+        if mensaje.retain or len(mensaje.payload) > 4096:
             return
+        try:
+            contenido = json.loads(mensaje.payload.decode("utf-8"))
+            if not isinstance(contenido, dict):
+                return
+            cola = self.consultas if mensaje.topic == self._topic("historial/solicitud") else self.comandos
+            cola.put_nowait(contenido)
+        except (ValueError, UnicodeError, Full):
+            print("MQTT: mensaje invalido o cola llena")
 
+    def publicar(self, ruta, datos, retain=False):
+        if self.cliente is not None and self.cliente.is_connected():
+            self.cliente.publish(self._topic(ruta), json.dumps(datos, ensure_ascii=False), qos=1, retain=retain)
 
-        mensaje = json.dumps(datos)
+    def publicar_lecturas(self, datos):
+        for clave in ("temperatura", "humedad", "gas", "distancia", "luz"):
+            self.publicar(f"sensores/{clave}", {"valor": datos.get(clave), "timestamp": datos.get("timestamp"),
+                          "reutilizado": datos.get("reutilizados", {}).get(clave, bool(datos.get("dht11_reutilizado")) if clave in ("temperatura", "humedad") else False)})
 
-        self.cliente.publish(ruta,mensaje)
+    def publicar_estado(self, estado):
+        self.publicar("estado/global", {"estado": estado})
 
+    def publicar_actuadores(self, actuadores):
+        for clave in ("puerta", "luces", "ventilador", "alarma"):
+            dato = {"estado": actuadores[clave]}
+            if clave == "luces":
+                dato.update(modo=actuadores["modo_luces"], zonas={f"zona{i+1}": actuadores["luces"] for i in range(len(cfg.GPIO_LUCES))})
+            self.publicar(f"actuadores/{clave}", dato)
 
-    def publicar_lecturas(self,datos):
+    def publicar_resultado_arm64(self, resultado):
+        self.publicar("arm64/resultados", resultado)
 
-
-        self.publicar("edificio/sensores",datos)
-
-    def publicar_estado(self,estado):
-
-        self.publicar("edificio/estado/global",{"estado": estado})
-
-
-    def publicar_actuadores(self,actuadores):
-
-        self.publicar("edificio/actuadores",actuadores)
-
-
-    def publicar_resultado_arm64(self,resultado):
-
-
-        self.publicar("edificio/arm64/resultados",resultado)
-
-
+    @staticmethod
+    def _sacar(cola):
+        try:
+            return cola.get_nowait()
+        except Empty:
+            return None
 
     def obtener_comando(self):
+        return self._sacar(self.comandos)
 
-        if len(self.comandos) > 0:
-            return self.comandos.pop(0)
-        return None
-
-
-
+    def responder_historial(self, base_datos):
+        consulta = self._sacar(self.consultas)
+        if consulta is None:
+            return
+        identificador = consulta.get("id", "")
+        if not isinstance(identificador, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", identificador):
+            return
+        respuesta = {"id": identificador, "coleccion": consulta.get("coleccion")}
+        try:
+            respuesta["documentos"] = base_datos.historial(consulta.get("coleccion"), consulta.get("limite", 40))
+        except Exception as error:
+            respuesta["error"] = str(error) if isinstance(error, (ValueError, RuntimeError)) else "No se pudo consultar Atlas"
+        self.publicar(f"historial/respuesta/{identificador}", respuesta)
 
     def cerrar(self):
-
         if self.cliente:
-
-            self.cliente.loop_stop()
+            self.publicar("conexion", {"conectado": False}, retain=True)
             self.cliente.disconnect()
+            self.cliente.loop_stop()

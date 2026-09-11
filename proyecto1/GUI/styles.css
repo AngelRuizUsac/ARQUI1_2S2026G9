@@ -123,3 +123,8 @@ th{color:var(--ink-muted);font-weight:500;text-transform:uppercase;font-size:10.
   .zones,.hist-grid{grid-template-columns:1fr;}
   header{padding:14px;}
 }
+
+.status-badge.ADVERTENCIA{color:var(--warn);}
+button:disabled{opacity:.45;cursor:not-allowed;}
+#zonasLuces{font-size:12px;line-height:1.7;margin-top:8px;}
+@media(max-width:720px){.charts-grid{grid-template-columns:minmax(0,1fr);}header{flex-wrap:wrap;gap:12px;}.config-panel{width:min(340px,calc(100vw - 36px));}}

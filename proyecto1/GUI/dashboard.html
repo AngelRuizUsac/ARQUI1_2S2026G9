@@ -19,7 +19,7 @@
     <span style="font-family:var(--mono);font-size:12px;color:var(--ink-muted);">
       <span class="conn-dot" id="connDot"></span><span id="connText">MQTT desconectado</span>
     </span>
-    <div class="status-badge NORMAL" id="globalStatus">NORMAL</div>
+    <div class="status-badge ADVERTENCIA" id="globalStatus">SIN CONEXIÓN</div>
   </div>
 </header>
 
@@ -40,6 +40,8 @@
         <div class="row">Humedad <span class="v" id="z-hum">—</span></div>
         <div class="row">Luz <span class="v" id="z-luz">—</span></div>
         <div class="row">Luces <span class="v" id="z-luces">—</span></div>
+        <div class="row">Modo <span class="v" id="z-modo">—</span></div>
+        <div id="zonasLuces" aria-live="polite"></div>
       </div>
       <div class="zone">
         <h3>Sala de control / emergencia</h3>
@@ -63,6 +65,11 @@
     </div>
   </section>
 
+  <section class="frame" aria-live="polite"><h2>Estado de operación</h2>
+    <p id="diagnostico">Esperando lecturas de la Raspberry.</p>
+    <p id="commandStatus">Los controles se habilitan al recibir datos.</p>
+    <p id="historyStatus">Historial pendiente.</p>
+    <p id="armDetails">ARM64: sin resultados.</p></section>
   <!-- GRAFICAS -->
   <section class="frame">
     <h2>Gráficas históricas (tiempo real)</h2>
@@ -107,7 +114,7 @@
       </div>
       <div>
         <h3 style="font-size:12px;color:var(--ink-muted);">Resultados ARM64</h3>
-        <div class="scroll"><table id="tblArm"><thead><tr><th>Hora</th><th>Máx/Mín/Prom</th></tr></thead><tbody></tbody></table></div>
+        <div class="scroll"><table id="tblArm"><thead><tr><th>Hora</th><th>Máx/Mín/Prom/Cant</th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
   </section>
@@ -124,17 +131,7 @@
   <label>Contraseña</label>
   <input id="cfg-mqtt-pass" type="password" />
   <label>Prefijo de topics (ej. edificio, o IDENTIFICADORUNICO/edificio)</label>
-  <input id="cfg-mqtt-prefix" placeholder="edificio" />
-
-  <strong style="font-size:12px;display:block;margin-top:16px;">MongoDB Atlas Data API</strong>
-  <label>Endpoint Data API</label>
-  <input id="cfg-mongo-url" placeholder="https://data.mongodb-api.com/app/APP_ID/endpoint/data/v1" />
-  <label>API Key</label>
-  <input id="cfg-mongo-key" type="password" />
-  <label>Data Source (cluster)</label>
-  <input id="cfg-mongo-source" placeholder="Cluster0" />
-  <label>Database</label>
-  <input id="cfg-mongo-db" placeholder="edificio_iot" />
+  <input id="cfg-mqtt-prefix" placeholder="ARQUIG9:v/edificio" />
 
   <button class="save-btn" onclick="saveConfig()">Guardar y conectar</button>
 </div>
