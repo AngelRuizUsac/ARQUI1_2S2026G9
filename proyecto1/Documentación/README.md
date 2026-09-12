@@ -290,7 +290,8 @@ Durante el desarrollo se realizaron pruebas para validar el funcionamiento de lo
 
 ### De conexiones físicas:
 
-<img width="1920" height="1080" alt="Diagrama2" src="https://github.com/user-attachments/assets/f2d36524-d99a-4463-ac0e-65ab4ec24978" />
+<img width="1920" height="1080" alt="Diagrama3 1" src="https://github.com/user-attachments/assets/49f70d24-4db8-42b7-a2ca-27bfa7551fde" />
+
 
 ### De flujo Python–ARM64:
 
