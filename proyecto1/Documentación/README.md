@@ -282,6 +282,19 @@ Durante el desarrollo se realizaron pruebas para validar el funcionamiento de lo
 ![alt text](image-8.png)
 
 
+## Diagramas
+
+### De arquitectura:
+
+<img width="1920" height="1080" alt="Diagrama1" src="https://github.com/user-attachments/assets/403a024f-0eda-4547-8265-d81433951064" />
+
+### De conexiones físicas:
+
+<img width="1920" height="1080" alt="Diagrama2" src="https://github.com/user-attachments/assets/f2d36524-d99a-4463-ac0e-65ab4ec24978" />
+
+### De flujo Python–ARM64:
+
+<img width="1920" height="1080" alt="Diagrama3" src="https://github.com/user-attachments/assets/f8842926-9f1d-4434-a552-0f7faf88a574" />
 
 
 
