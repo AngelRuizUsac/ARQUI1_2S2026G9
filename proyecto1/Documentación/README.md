@@ -39,7 +39,7 @@ iot/
 ```
 
 * main.py: es el encargado de coordinar todos los procesos del sistema. Su función principal es mantener el ciclo de operación del edificio inteligente.El ciclo principal funciona utilizando un intervalo configurable, permitiendo realizar lecturas periódicas sin bloquear el funcionamiento del sistema. El flujo ejecutado es:
-
+```text
     1. Inicialización de servicios.
     2. Conexión con MongoDB.
     3. Inicialización MQTT.
@@ -50,7 +50,7 @@ iot/
     8.	Almacenamiento de información.
     9.	Comunicación con dashboard.
     10.	Procesamiento ARM64.
-
+```
 
 * Globals.py: implementa una clase de estado compartido llamada GlobalState. Este módulo funciona como un almacenamiento temporal centralizado donde los diferentes componentes pueden consultar información actual. El uso de este módulo evita tener que enviar información repetida entre funciones y permite que todos los subsistemas trabajen con la misma información actualizada. Mantiene variables como:
 
@@ -127,20 +127,23 @@ MQTT
 
 En MQTT existen tres elementos principales:
 
-#### 1. Publisher (Emisor): es el componente encargado de enviar información al bróker. En este proyecto el principal publisher es: Raspberry Pi + Python, el sistema publica:
+#### 1. Publisher (Emisor) 
+Es el componente encargado de enviar información al bróker. En este proyecto el principal publisher es: Raspberry Pi + Python, el sistema publica:
 
         Lecturas de sensores.
         Estado general del edificio.
         Estado de actuadores.
         Resultados generados por ARM64.
 
-#### 2. MQTT Broker: es el intermediario encargado de recibir los mensajes y distribuirlos a los clientes que estén interesados. El bróker permite que el dashboard no tenga que conectarse directamente con la Raspberry Pi. Sus principales funciones son:
+#### 2. MQTT Broker
+Es el intermediario encargado de recibir los mensajes y distribuirlos a los clientes que estén interesados. El bróker permite que el dashboard no tenga que conectarse directamente con la Raspberry Pi. Sus principales funciones son:
 
         Recibir información publicada.
         Administrar los topics.
         Enviar mensajes a los suscriptores correspondientes.
 
-#### 3. Subscriber (Suscriptor): es el componente que recibe los mensajes publicados en los topics a los que está suscrito. En este proyecto, el dashboard puede suscribirse a los topics necesarios para recibir información sobre el estado del edificio, sensores, actuadores y resultados.
+#### 3. Subscriber (Suscriptor)
+Es el componente que recibe los mensajes publicados en los topics a los que está suscrito. En este proyecto, el dashboard puede suscribirse a los topics necesarios para recibir información sobre el estado del edificio, sensores, actuadores y resultados.
 
 
 #### Topics utilizados
